@@ -1,0 +1,57 @@
+name: Run
+
+on: [push]
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.7", "3.8", "3.9", "3.10"]
+        java-version: ["8", "11", "17"]
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Set up JDK ${{ matrix.java-version }}
+      uses: actions/setup-java@v3
+      with:
+        java-version: ${{ matrix.java-version }}
+        distribution: 'adopt'
+
+    - name: Install required packages
+      run: |
+        sudo apt-get update
+        sudo apt-get install software-properties-common maven -y
+
+    - name: Python pip cache
+      uses: actions/cache@v2
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Cache local Maven repository
+      uses: actions/cache@v2
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        cd python && pip install -r requirements.txt
+
+    - name: Build the Java part
+      run: cd java && mvn package
+
+    - name: Run the executables
+      run: |
+        cd python && python ./examples/main.py &
+        java -jar ./java/target/py4j-example-1.0-SNAPSHOT.jar
